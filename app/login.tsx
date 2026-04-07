@@ -1,8 +1,4 @@
-import * as AuthSession from 'expo-auth-session';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { signInWithCustomToken } from 'firebase/auth';
-import { httpsCallable } from 'firebase/functions';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,18 +8,8 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Alert,
 } from 'react-native';
-import { auth, functions } from '../constants/firebaseConfig';
-
-WebBrowser.maybeCompleteAuthSession();
-
-const AUTH0_DOMAIN = 'dev-f32zx5mz1bt532qq.us.auth0.com';
-const AUTH0_CLIENT_ID = 'St384kkoZP8YCuImNDorY1lrz2RxiDHG';
-
-const discovery = {
-  authorizationEndpoint: `https://${AUTH0_DOMAIN}/authorize`,
-  tokenEndpoint: `https://${AUTH0_DOMAIN}/oauth/token`,
-};
 
 const MicrosoftIcon = () => (
   <View style={ic.msGrid}>
@@ -50,118 +36,21 @@ export default function LoginScreen() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: 'myapp',
-    path: 'callback',
-  });
-
-  console.log('Redirect URI:', redirectUri);
-
-  const [googleRequest, , googlePromptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: AUTH0_CLIENT_ID,
-      redirectUri,
-      scopes: ['openid', 'profile', 'email'],
-      extraParams: {
-        connection: 'google-oauth2',
-        audience: `https://${AUTH0_DOMAIN}/api/v2/`,
-      },
-    },
-    discovery
-  );
-
-  const [microsoftRequest, , microsoftPromptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: AUTH0_CLIENT_ID,
-      redirectUri,
-      scopes: ['openid', 'profile', 'email'],
-      extraParams: {
-        connection: 'windowslive',
-        audience: `https://${AUTH0_DOMAIN}/api/v2/`,
-      },
-    },
-    discovery
-  );
-
   const handleLogin = async (provider: 'google' | 'microsoft') => {
     setIsLoading(true);
+    
     try {
-      // ✅ Guard 1 — request not ready yet
-      const request = provider === 'google' ? googleRequest : microsoftRequest;
-      if (!request) {
-        console.log('Auth request not ready yet');
-        return;
-      }
-
-      const result = provider === 'google'
-        ? await googlePromptAsync()
-        : await microsoftPromptAsync();
-
-      console.log('Auth result:', JSON.stringify(result));
-
-      // ✅ Guard 2 — cancelled or failed
-      if (!result || result.type !== 'success') {
-        console.log('Login cancelled or failed:', result?.type);
-        return;
-      }
-
-      const { code } = result.params;
-
-      // ✅ Guard 3 — missing codeVerifier
-      if (!request.codeVerifier) {
-        throw new Error('PKCE code verifier is missing. Cannot exchange code.');
-      }
-
-      const tokenResponse = await AuthSession.exchangeCodeAsync(
-        {
-          clientId: AUTH0_CLIENT_ID,
-          redirectUri,
-          code,
-          extraParams: {
-            code_verifier: request.codeVerifier,
-          },
-        },
-        { tokenEndpoint: `https://${AUTH0_DOMAIN}/oauth/token` }
-      );
-
-      const accessToken = tokenResponse.accessToken;
-      if (!accessToken) throw new Error('No access token received from Auth0.');
-
-      console.log('Access token received!');
-
-      // ✅ Detailed Firebase function logs
-      console.log('Calling exchangeAuth0Token function...');
-      const exchangeFunction = httpsCallable(functions, 'exchangeAuth0Token');
-
-      let response;
-      try {
-        response = await exchangeFunction({ accessToken });
-        console.log('Function response:', JSON.stringify(response.data));
-      } catch (funcError: any) {
-        console.error('Function call FAILED:');
-        console.error('  code:', funcError.code);
-        console.error('  message:', funcError.message);
-        console.error('  details:', JSON.stringify(funcError.details));
-        throw funcError;
-      }
-
-      const { firebaseToken } = response.data as { firebaseToken: string };
-      console.log('Got firebase token, signing in...');
-
-      try {
-        await signInWithCustomToken(auth, firebaseToken);
-        console.log('Logged into Firebase successfully!');
-      } catch (authError: any) {
-        console.error('Firebase sign in FAILED:');
-        console.error('  code:', authError.code);
-        console.error('  message:', authError.message);
-        throw authError;
-      }
-
+      // Simulate login delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      console.log(`Logging in with ${provider}...`);
+      
+      // Navigate to onboarding after "successful login"
       router.replace('/onboarding');
-
+      
     } catch (error: any) {
       console.error('Login Error:', error);
+      Alert.alert('Login Failed', 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -191,16 +80,22 @@ export default function LoginScreen() {
         <TouchableOpacity
           style={[ls.authBtn, isLoading && { opacity: 0.5 }]}
           onPress={() => handleLogin('microsoft')}
-          disabled={isLoading || !microsoftRequest}
+          disabled={isLoading}
         >
-          <MicrosoftIcon />
-          <Text style={ls.authBtnText}>Sign in with Microsoft</Text>
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#395886" />
+          ) : (
+            <>
+              <MicrosoftIcon />
+              <Text style={ls.authBtnText}>Sign in with Microsoft</Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[ls.authBtn, isLoading && { opacity: 0.5 }]}
           onPress={() => handleLogin('google')}
-          disabled={isLoading || !googleRequest}
+          disabled={isLoading}
         >
           {isLoading ? (
             <ActivityIndicator size="small" color="#395886" />
